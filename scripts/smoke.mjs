@@ -111,7 +111,7 @@ check('指をはなすと止まる', stopped < 1, String(stopped));
 await tap(720 - 58, 88);
 check('ポーズで止まる', (await game(() => window.__ds.scene.getScene('Game').mode)) === 'paused');
 await shot('04-pause');
-await tap(360, H * 0.42);
+await tap(360, H / 2 - 70);
 check('つづけるで再開', (await game(() => window.__ds.scene.getScene('Game').mode)) === 'play');
 
 // ---- レベルアップ ----
@@ -124,7 +124,7 @@ await page.waitForFunction(() => window.__ds.scene.getScene('Game').mode === 'ch
 await page.waitForTimeout(700);
 await shot('05-levelup');
 const weaponsBefore = await game(() => JSON.stringify(window.__ds.scene.getScene('Game').loadout));
-await tap(360, H * 0.15 + 210);
+await tap(360, H / 2 - 120);
 const picked = await game(() => {
   const g = window.__ds.scene.getScene('Game');
   return { mode: g.mode, loadout: JSON.stringify(g.loadout) };
@@ -187,12 +187,65 @@ await shot('09-result');
 const saved = await game(() => JSON.parse(localStorage.getItem('dungeon-survivors:save:v1')));
 check('結果が保存される（コイン・記録・回数）', saved.coins >= 100 && saved.best.cleared === true && saved.plays === 1, JSON.stringify(saved));
 
+// ---- もう1回 → ポーズ → タイトルへ ----
+const timerShown = () => game(() => window.__ds.scene.getScene('Hud').timerText.visible);
+check('結果画面では残り時間の表示をかくす', (await timerShown()) === false);
+await tap(360, Math.max(190, H / 2 - 352) + 562);
+await page.waitForTimeout(500);
+const retried = await game(() => {
+  const g = window.__ds.scene.getScene('Game');
+  return { mode: g.mode, elapsed: g.elapsed, hp: g.hp, max: g.stats.maxHp, kills: g.kills };
+});
+check(
+  'もう1回で最初からやり直せる',
+  retried.mode === 'play' && retried.elapsed < 3 && retried.hp === retried.max && retried.kills === 0,
+  JSON.stringify(retried),
+);
+check('やり直すと残り時間の表示がもどる', (await timerShown()) === true);
+check('やり直し後もゲームと HUD だけが動いている', (await active()).join(',') === 'Game,Hud', (await active()).join(','));
+await tap(720 - 58, 88);
+await tap(360, H / 2 + 200);
+await page.waitForTimeout(400);
+check('ポーズからタイトルへもどれる', (await active()).join(',') === 'Title', (await active()).join(','));
+
+// ---- リロード後も残る ----
 await page.reload();
 await page.waitForFunction(() => window.__ds?.scene.isActive('Title'));
 await page.waitForTimeout(400);
 await shot('10-title-after');
 const reloaded = await game(() => JSON.parse(localStorage.getItem('dungeon-survivors:save:v1')));
-check('リロード後も残る', reloaded.coins === saved.coins);
+check('リロード後も残る', reloaded.coins === saved.coins && reloaded.plays === 1);
+
+// ---- キャラクター解放と強化の購入 ----
+const readSave = () => game(() => JSON.parse(localStorage.getItem('dungeon-survivors:save:v1')));
+await tap(360 + 230, H * 0.47);
+check('コインが足りないとキャラクターを買えない', !(await readSave()).unlocked.includes('thief'));
+await game(() => {
+  const k = 'dungeon-survivors:save:v1';
+  localStorage.setItem(k, JSON.stringify({ ...JSON.parse(localStorage.getItem(k)), coins: 1000 }));
+});
+await page.reload();
+await page.waitForFunction(() => window.__ds?.scene.isActive('Title'));
+await page.waitForTimeout(400);
+await tap(360, H * 0.47);
+let s = await readSave();
+check('まほう使いを買うと解放されて選ばれる', s.unlocked.includes('mage') && s.selected === 'mage' && s.coins === 850, JSON.stringify(s));
+await tap(360 - 230, H * 0.47);
+check('けんしにもどせる', (await readSave()).selected === 'knight');
+await tap(360, H * 0.735 + 146);
+await tap(720 - 122, Math.max(250, H * 0.2) - 4);
+s = await readSave();
+check('強化を買うとコインが減ってレベルが上がる', s.meta.atk === 1 && s.coins === 820, JSON.stringify(s.meta));
+await shot('11-shop-bought');
+await tap(360, H - 90);
+await tap(360 + 0, H * 0.47);
+await tap(360, H * 0.735);
+await page.waitForTimeout(400);
+const mage = await game(() => {
+  const g = window.__ds.scene.getScene('Game');
+  return { weapon: g.loadout.weapons[0].id, dmg: g.stats.damageMul };
+});
+check('選んだキャラクターと強化がプレイに反映される', mage.weapon === 'bolt' && Math.abs(mage.dmg - 1.08) < 1e-9, JSON.stringify(mage));
 
 check('エラーが出ていない', errors.length === 0, errors.slice(0, 5).join(' | '));
 await browser.close();

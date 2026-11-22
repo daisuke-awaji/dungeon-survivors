@@ -23,6 +23,16 @@ npm test           # Vitest
 npm run build      # dist/ に出力
 ```
 
+### ブラウザでの動作確認
+
+ヘッドレス Chromium（`playwright-core`。このリポジトリの依存には入れていません）を使うスクリプトです。
+先に `npm run build && npx vite preview --port 4173` を起動しておきます。
+
+```bash
+node scripts/smoke.mjs            # スマホ画面サイズで一通り操作し、shots/ に画面を保存
+sh scripts/balance.sh 0.5 0 2     # 自動プレイ（うまさ 0〜1、永続強化レベル、回数）で難易度の目安を見る
+```
+
 ## 技術構成
 
 - Phaser 3 + TypeScript + Vite

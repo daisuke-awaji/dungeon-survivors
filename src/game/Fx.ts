@@ -37,6 +37,7 @@ export interface SpriteFxOptions {
 
 const NUMBER_POOL = 48;
 const NUMBER_LIFE = 0.55;
+const NUMBER_INSET = 40;
 const TRANSIENT_MAX = 90;
 const LIGHTNING_LIFE = 0.16;
 
@@ -70,9 +71,12 @@ export class Fx {
     const n = this.numbers[this.numberIndex];
     this.numberIndex = (this.numberIndex + 1) % NUMBER_POOL;
     n.life = NUMBER_LIFE;
+    // 画面のはしで数字が切れないよう、内がわによせる
+    const view = this.scene.cameras.main.worldView;
+    const nx = Phaser.Math.Clamp(x + (Math.random() - 0.5) * 24, view.x + NUMBER_INSET, view.right - NUMBER_INSET);
     n.txt
       .setText(text)
-      .setPosition(x + (Math.random() - 0.5) * 24, y)
+      .setPosition(nx, y)
       .setTint(tint)
       .setScale(scale)
       .setAlpha(1)
