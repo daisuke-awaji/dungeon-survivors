@@ -43,6 +43,9 @@ export interface Enemy {
   /** ボスの行動用 */
   aiT: number;
   aiState: number;
+  /** れん発の残り回数と、次をうつまでの時間 */
+  burst: number;
+  burstT: number;
   dirX: number;
   dirY: number;
   sprite: Phaser.GameObjects.Image;
@@ -86,5 +89,7 @@ export interface EnemyBullet {
   vy: number;
   life: number;
   damage: number;
+  /** 当たったプレイヤーの足がおそくなる時間（0 ならおそくならない） */
+  chill: number;
   sprite: Phaser.GameObjects.Image;
 }
