@@ -58,7 +58,8 @@ class Sfx {
         const data = this.noise.getChannelData(0);
         for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
       }
-      if (this.ctx.state === 'suspended') void this.ctx.resume();
+      // iOS では、ほかのアプリから戻ったあと 'interrupted' になることがある
+      if (this.ctx.state !== 'running') void this.ctx.resume();
     } catch {
       this.ctx = null;
     }

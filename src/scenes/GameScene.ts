@@ -35,6 +35,7 @@ import type { HudScene } from './HudScene';
 export type GameMode = 'play' | 'choosing' | 'paused' | 'over';
 
 const VIEW_MARGIN = 90;
+const PLAYER_SCALE = 1.15;
 const JOY_RADIUS = 90;
 const INVULN_TIME = 0.6;
 const LEVEL_UP_HEAL = 0.07;
@@ -105,6 +106,7 @@ export class GameScene extends Phaser.Scene {
   private floor!: Phaser.GameObjects.TileSprite;
   private playerSprite!: Phaser.GameObjects.Image;
   private shadow!: Phaser.GameObjects.Image;
+  private aura!: Phaser.GameObjects.Image;
   private hpBack!: Phaser.GameObjects.Rectangle;
   private hpFill!: Phaser.GameObjects.Rectangle;
   private joyBase!: Phaser.GameObjects.Image;
@@ -168,8 +170,20 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(DEPTH.floor);
-    this.shadow = this.add.image(0, 0, ATLAS, 'shadow');
-    this.playerSprite = this.add.image(0, 0, ATLAS, this.char.frame).setOrigin(0.5, 0.6);
+    // てきが多くても自分の位置がわかるよう、足元を光らせる
+    this.aura = this.add
+      .image(0, 0, ATLAS, 'glow')
+      .setTint(0xfff2a8)
+      .setAlpha(0.3)
+      .setScale(1.25)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(DEPTH.actor - 2);
+    this.shadow = this.add.image(0, 0, ATLAS, 'shadow').setDepth(DEPTH.actor - 1);
+    this.playerSprite = this.add
+      .image(0, 0, ATLAS, this.char.frame)
+      .setOrigin(0.5, 0.6)
+      .setScale(PLAYER_SCALE)
+      .setDepth(DEPTH.actor + 2100);
     this.hpBack = this.add.rectangle(0, 0, 68, 12, 0x1b1530).setDepth(DEPTH.fx - 30);
     this.hpFill = this.add.rectangle(0, 0, 62, 6, 0x4ade80).setOrigin(0, 0.5).setDepth(DEPTH.fx - 29);
     this.joyBase = this.add.image(0, 0, ATLAS, 'joyBase').setScrollFactor(0).setDepth(DEPTH.ui).setVisible(false);
@@ -301,16 +315,16 @@ export class GameScene extends Phaser.Scene {
     this.playerSprite
       .setPosition(this.px, this.py + bob)
       .setFlipX(this.facingLeft)
-      .setAlpha(blink ? 0.45 : 1)
-      .setDepth(DEPTH.actor + 1000);
+      .setAlpha(blink ? 0.45 : 1);
     if (this.hurtFlash > 0) this.playerSprite.setTint(0xff6b6b);
     else this.playerSprite.clearTint();
-    this.shadow.setPosition(this.px, this.py + 34).setDepth(DEPTH.actor - 1);
+    this.shadow.setPosition(this.px, this.py + 38);
+    this.aura.setPosition(this.px, this.py + 10).setScale(1.25 + Math.sin(this.elapsed * 4) * 0.08);
 
     const ratio = Phaser.Math.Clamp(this.hp / this.stats.maxHp, 0, 1);
-    this.hpBack.setPosition(this.px, this.py + 52);
+    this.hpBack.setPosition(this.px, this.py + 58);
     this.hpFill
-      .setPosition(this.px - 31, this.py + 52)
+      .setPosition(this.px - 31, this.py + 58)
       .setScale(ratio, 1)
       .setFillStyle(ratio > 0.5 ? 0x4ade80 : ratio > 0.25 ? 0xfacc15 : 0xf87171);
   }

@@ -9,7 +9,7 @@ import { getSave, setSave } from '../store';
 import { COLORS, makeButton, onTap, panel, textStyle } from '../ui';
 
 const CARD_W = 214;
-const CARD_H = 290;
+const CARD_H = 316;
 
 export class TitleScene extends Phaser.Scene {
   private floor!: Phaser.GameObjects.TileSprite;
@@ -115,24 +115,24 @@ export class TitleScene extends Phaser.Scene {
       22,
       selected ? 8 : 5,
     );
-    const sprite = this.add.image(0, -78, ATLAS, def.frame).setScale(1.5);
+    const sprite = this.add.image(0, -90, ATLAS, def.frame).setScale(1.5);
     if (!unlocked) sprite.setTint(0x40405a);
-    const name = this.add.text(0, 6, def.name, textStyle(30)).setOrigin(0.5);
+    const name = this.add.text(0, -8, def.name, textStyle(30)).setOrigin(0.5);
     const desc = this.add
-      .text(0, 62, def.desc, textStyle(20, '#cfd3ff', { align: 'center', strokeThickness: 3 }))
+      .text(0, 46, def.desc, textStyle(20, '#cfd3ff', { align: 'center', strokeThickness: 3 }))
       .setOrigin(0.5);
 
     const card = this.add.container(x, y, [g, sprite, name, desc]);
     if (selected) {
-      card.add(this.add.text(0, 116, 'えらび中', textStyle(24, '#ffe14d')).setOrigin(0.5));
+      card.add(this.add.text(0, 112, 'えらび中', textStyle(24, '#ffe14d')).setOrigin(0.5));
       this.tweens.add({ targets: sprite, y: '-=8', duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     } else if (unlocked) {
-      card.add(this.add.text(0, 116, 'タップでえらぶ', textStyle(20)).setOrigin(0.5));
+      card.add(this.add.text(0, 112, 'タップでえらぶ', textStyle(20)).setOrigin(0.5));
     } else {
       const affordable = save.coins >= def.cost;
-      card.add(this.add.image(-38, 116, ATLAS, 'coin').setScale(1.1));
+      card.add(this.add.image(-38, 112, ATLAS, 'coin').setScale(1.1));
       card.add(
-        this.add.text(-16, 116, String(def.cost), textStyle(28, affordable ? '#ffe14d' : '#ff8a8a')).setOrigin(0, 0.5),
+        this.add.text(-16, 112, String(def.cost), textStyle(28, affordable ? '#ffe14d' : '#ff8a8a')).setOrigin(0, 0.5),
       );
     }
 

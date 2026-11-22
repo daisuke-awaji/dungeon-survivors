@@ -45,7 +45,7 @@ function knight(c: Ctx): void {
   c.lineWidth = 4;
   c.strokeStyle = OUTLINE;
   c.stroke();
-  ell(c, 36, 8, 5, 7, '#e04848', OUTLINE, 3);
+  ell(c, 36, 9, 7, 8, '#e04848', OUTLINE, 3);
   dotEyes(c, 36, 37);
 }
 

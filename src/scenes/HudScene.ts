@@ -30,6 +30,7 @@ const CARD_W = 650;
 const CARD_H = 170;
 const BOSS_BAR_W = 440;
 const OVERLAY_DEPTH = 100;
+const HUD_SHADE_STEPS = 6;
 
 function cardView(c: Choice): CardView {
   switch (c.kind) {
@@ -104,16 +105,21 @@ export class HudScene extends Phaser.Scene {
 
     this.vignette = this.add.rectangle(0, 0, W, H, 0xff2a2a, 0).setOrigin(0);
 
+    // 上の表示がてきにまぎれないよう、うしろを少し暗くする
+    for (let i = 0; i < HUD_SHADE_STEPS; i++) {
+      this.add.rectangle(0, 32 + i * 22, W, 22, COLORS.ink, 0.5 * (1 - i / HUD_SHADE_STEPS)).setOrigin(0);
+    }
     this.add.rectangle(0, 0, W, 32, COLORS.ink).setOrigin(0);
+    this.add.rectangle(3, 3, W - 6, 26, 0x2a3156).setOrigin(0);
     this.xpFill = this.add.rectangle(3, 3, W - 6, 26, 0x4fc3f7).setOrigin(0).setScale(0, 1);
     this.levelText = this.add.text(W / 2, 16, '', textStyle(24, '#ffffff', { strokeThickness: 5 })).setOrigin(0.5);
 
     this.timerText = this.add.text(W / 2, 80, '', textStyle(48)).setOrigin(0.5);
 
-    this.add.image(36, 66, ATLAS, 'slime').setScale(0.62);
-    this.killText = this.add.text(64, 66, '', textStyle(28)).setOrigin(0, 0.5);
-    this.add.image(36, 108, ATLAS, 'coin');
-    this.coinText = this.add.text(64, 108, '', textStyle(28, '#ffe14d')).setOrigin(0, 0.5);
+    this.add.image(42, 66, ATLAS, 'slime').setScale(0.62);
+    this.killText = this.add.text(70, 66, '', textStyle(28)).setOrigin(0, 0.5);
+    this.add.image(42, 108, ATLAS, 'coin');
+    this.coinText = this.add.text(70, 108, '', textStyle(28, '#ffe14d')).setOrigin(0, 0.5);
 
     this.buildPauseButton(W - 58, 88);
 
@@ -169,7 +175,7 @@ export class HudScene extends Phaser.Scene {
     if (g.loadoutVersion !== this.iconsVersion) this.rebuildIcons();
 
     const boss = g.boss;
-    if (boss && boss.active) {
+    if (boss && boss.active && g.mode !== 'over') {
       this.bossBox.setVisible(true);
       this.bossFill.setScale(Phaser.Math.Clamp(boss.hp / boss.maxHp, 0, 1), 1);
       if (boss.def.name !== this.shownBoss) {
@@ -254,17 +260,18 @@ export class HudScene extends Phaser.Scene {
     const H = this.scale.height;
     const box = this.openOverlay(0.72);
 
+    const y0 = H / 2 - 330;
     const title = this.add
-      .text(W / 2, H * 0.15, 'レベルアップ！', textStyle(68, '#ffe14d', { strokeThickness: 12 }))
+      .text(W / 2, y0, 'レベルアップ！', textStyle(68, '#ffe14d', { strokeThickness: 12 }))
       .setOrigin(0.5);
-    const sub = this.add.text(W / 2, H * 0.15 + 70, 'スキルを1つ選ぼう', textStyle(30)).setOrigin(0.5);
+    const sub = this.add.text(W / 2, y0 + 70, 'スキルを1つ選ぼう', textStyle(30)).setOrigin(0.5);
     box.add([title, sub]);
     this.tweens.add({ targets: title, scale: { from: 0.5, to: 1 }, duration: 300, ease: 'Back.easeOut' });
 
     let armed = false;
     this.time.delayedCall(350, () => (armed = true));
 
-    const top = H * 0.15 + 210;
+    const top = y0 + 210;
     choices.forEach((choice, i) => {
       const v = cardView(choice);
       const gfx = this.add.graphics();
@@ -313,17 +320,21 @@ export class HudScene extends Phaser.Scene {
     const H = this.scale.height;
     const box = this.openOverlay(0.78);
 
-    box.add(this.add.text(W / 2, H * 0.24, 'ポーズ', textStyle(72, '#ffffff', { strokeThickness: 12 })).setOrigin(0.5));
+    const cy = H / 2;
+    const back = this.add.graphics();
+    panel(back, W / 2 - 280, cy - 300, 560, 600, COLORS.panel);
+    box.add(back);
+    box.add(this.add.text(W / 2, cy - 215, 'ポーズ', textStyle(72, '#ffffff', { strokeThickness: 12 })).setOrigin(0.5));
 
     const soundLabel = () => (getSave().muted ? '音: オフ' : '音: オン');
-    const resume = makeButton(this, W / 2, H * 0.42, 440, 108, 'つづける', () => {
+    const resume = makeButton(this, W / 2, cy - 70, 440, 108, 'つづける', () => {
       this.closeOverlay();
       this.g.setPaused(false);
     });
     const sound = makeButton(
       this,
       W / 2,
-      H * 0.42 + 140,
+      cy + 70,
       440,
       92,
       soundLabel(),
@@ -336,7 +347,7 @@ export class HudScene extends Phaser.Scene {
       },
       { color: COLORS.blue, fontSize: 36, sound: false },
     );
-    const quit = makeButton(this, W / 2, H * 0.42 + 270, 440, 92, 'タイトルへ', () => this.toTitle(), {
+    const quit = makeButton(this, W / 2, cy + 200, 440, 92, 'タイトルへ', () => this.toTitle(), {
       color: COLORS.gray,
       fontSize: 36,
     });
@@ -349,14 +360,16 @@ export class HudScene extends Phaser.Scene {
     const H = this.scale.height;
     const { run } = info;
     const box = this.openOverlay(0.8);
+    // 結果の見出しのうしろに「ドラゴンをたおせ！」などが残らないようにする
+    this.timerText.setVisible(false);
 
     const head = run.dragon
       ? { title: '完全クリア！！', color: '#ffe14d', sub: 'ドラゴンを たおした！' }
       : run.cleared
-        ? { title: 'クリア！', color: '#6ee7a0', sub: 'ドラゴンには やられた…' }
+        ? { title: 'クリア！', color: '#6ee7a0', sub: '5分 生き残った！ 次はドラゴンをたおそう' }
         : { title: 'ゲームオーバー', color: '#ff8a8a', sub: 'また ちょうせんしよう！' };
 
-    const top = H * 0.14;
+    const top = Math.max(190, H / 2 - 352);
     const title = this.add
       .text(W / 2, top, head.title, textStyle(76, head.color, { strokeThickness: 14 }))
       .setOrigin(0.5);

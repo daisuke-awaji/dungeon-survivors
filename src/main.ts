@@ -24,6 +24,23 @@ const game = new Phaser.Game({
   scene: [BootScene, TitleScene, ShopScene, GameScene, HudScene],
 });
 
+// 画面の向きや大きさが変わったら、メニュー画面のときだけ高さを合わせ直す（プレイ中は変えない）
+let resizeTimer = 0;
+window.addEventListener('resize', () => {
+  window.clearTimeout(resizeTimer);
+  resizeTimer = window.setTimeout(() => {
+    const height = computeGameHeight(window.innerWidth, window.innerHeight);
+    if (height === game.scale.height) return;
+    for (const key of ['Title', 'Shop']) {
+      if (game.scene.isActive(key)) {
+        game.scale.setGameSize(GAME_WIDTH, height);
+        game.scene.getScene(key).scene.restart();
+        return;
+      }
+    }
+  }, 200);
+});
+
 if (new URLSearchParams(window.location.search).has('debug')) {
   (window as unknown as { __ds: Phaser.Game }).__ds = game;
 }
