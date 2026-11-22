@@ -69,6 +69,8 @@ const info = await game(() => ({
   h: window.__ds.scale.height,
   webgl: window.__ds.renderer.type === 2,
   frames: Object.keys(window.__ds.textures.get('atlas').frames).length,
+  fromArt: window.__ds.textures.get('atlas').customData.fromArt,
+  knight: (({ cutWidth, cutHeight }) => [cutWidth, cutHeight])(window.__ds.textures.getFrame('atlas', 'knight')),
 }));
 console.log('info', info);
 const H = info.h;
@@ -76,6 +78,7 @@ const L = await game(() => window.__ds.scene.getScene('Title').layout);
 const STAGE_X = [360 - 173, 360 + 173];
 check('画面サイズ 720 x 縦横比どおり', info.w === 720 && info.h === Math.round((720 * 844) / 390));
 check('アトラスのフレームがそろっている', info.frames >= 55, `${info.frames}`);
+check('キャラクター18体が絵のファイルで表示される', info.fromArt?.length === 18, `${info.fromArt?.join(',')} / knight ${info.knight}`);
 await shot('01-title');
 
 // ---- 面2はロックされている ----
@@ -534,6 +537,24 @@ check(
   JSON.stringify(wideInfo),
 );
 await wide.close();
+
+// ---- 絵のファイルが読みこめないときは、コードでかいた絵で動く ----
+const noArt = await browser.newContext({ viewport: { width: 390, height: 844 } });
+await noArt.route(/\.webp(\?|$)/, (route) => route.abort());
+const noArtPage = await noArt.newPage();
+noArtPage.on('pageerror', (e) => errors.push(`pageerror(noArt): ${e.message}`));
+await noArtPage.goto(`${BASE}?debug`);
+await noArtPage.waitForFunction(() => window.__ds?.scene.isActive('Title'));
+const noArtInfo = await noArtPage.evaluate(() => ({
+  fromArt: window.__ds.textures.get('atlas').customData.fromArt,
+  knight: (({ cutWidth, cutHeight }) => [cutWidth, cutHeight])(window.__ds.textures.getFrame('atlas', 'knight')),
+}));
+check(
+  '絵のファイルが読みこめなくても、コードでかいた絵でタイトルが出る',
+  noArtInfo.fromArt?.length === 0 && noArtInfo.knight.join() === '72,84',
+  JSON.stringify(noArtInfo),
+);
+await noArt.close();
 
 check('エラーが出ていない', errors.length === 0, errors.slice(0, 5).join(' | '));
 await browser.close();

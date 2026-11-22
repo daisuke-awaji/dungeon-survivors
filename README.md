@@ -35,10 +35,19 @@ sh scripts/balance.sh 0.5 0 2     # 自動プレイ（うまさ 0〜1、永続�
 STAGE=iceCave sh scripts/balance.sh 0.5 2 2   # 面2で同じことをする
 ```
 
+### キャラクターの絵を作り直す
+
+`art/source/` の5枚（マゼンタ背景）から1体ずつ切り抜き、`src/assets/sprites/` に書き出します。Python 3 と Pillow・numpy が必要です。
+元の絵を作ったプロンプトは [art/PROMPTS.md](art/PROMPTS.md) にあります。
+
+```bash
+python3 scripts/art/cut.py
+```
+
 ## 技術構成
 
 - Phaser 3 + TypeScript + Vite
-- 画像・音声ファイルは使わず、すべてコードで生成（Canvas 2D / Web Audio）
+- キャラクター18体の絵は生成AIでかいたもの（`src/assets/sprites/`）。ほかの絵と効果音はコードで生成（Canvas 2D / Web Audio）
 - セーブは localStorage。通信・広告・課金なし
 - GitHub Actions で lint・テスト・ビルドを実行し、GitHub Pages にデプロイ
 
