@@ -73,7 +73,14 @@ export function availableChoices(loadout: Loadout): { evolutions: Choice[]; upgr
 /** レベルアップ時の選たく肢。進化できるものは必ず入れ、足りない分はボーナスでうめる */
 export function drawChoices(loadout: Loadout, rng: Rng, count = 3): Choice[] {
   const { evolutions, upgrades } = availableChoices(loadout);
-  const out: Choice[] = [...shuffle(evolutions, rng), ...shuffle(upgrades, rng)].slice(0, count);
+  const pool = [...shuffle(evolutions, rng), ...shuffle(upgrades, rng)];
+  const out: Choice[] = pool.slice(0, count);
+  // 武器が1つも出ないと強くなりにくいので、出せるときは最後の1つを武器にする
+  const isWeapon = (c: Choice) => c.kind === 'weapon' || c.kind === 'evolve';
+  if (out.length === count && !out.some(isWeapon)) {
+    const weapon = pool.slice(count).find(isWeapon);
+    if (weapon) out[count - 1] = weapon;
+  }
   const bonuses: Choice[] = [
     { kind: 'bonus', id: 'heal' },
     { kind: 'bonus', id: 'coins' },

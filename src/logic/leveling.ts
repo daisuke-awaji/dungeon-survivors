@@ -6,7 +6,7 @@ export interface XpState {
 /** 今のレベルから次のレベルまでに必要な経験値 */
 export function xpToNext(level: number): number {
   const n = Math.max(0, Math.floor(level) - 1);
-  return 5 + 5 * n + Math.floor(0.5 * n * n);
+  return 4 + 3 * n + Math.floor(0.25 * n * n);
 }
 
 export function addXp(state: XpState, amount: number): XpState & { gained: number } {

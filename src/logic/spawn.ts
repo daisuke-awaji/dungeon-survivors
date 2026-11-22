@@ -19,15 +19,15 @@ export function pickEnemy(t: number, rng: Rng): EnemyId {
 
 /** 1秒あたりの出現数 */
 export function spawnRate(t: number): number {
-  if (t >= RUN_SECONDS) return 2.5;
+  if (t >= RUN_SECONDS) return 1.5;
   const p = Math.max(0, t) / RUN_SECONDS;
-  return 1.2 + 6.3 * p;
+  return 1.0 + 4.3 * p;
 }
 
 /** 時間がたつほど、てきの HP が上がる */
 export function hpScale(t: number): number {
   const p = Math.min(Math.max(0, t), RUN_SECONDS * 1.2) / RUN_SECONDS;
-  return 1 + 1.4 * p;
+  return 1 + 0.9 * p;
 }
 
 /** 一定時間ごとに、てきがプレイヤーを囲んで出てくる数 */
