@@ -1,11 +1,11 @@
 // 自動プレイで難易度の目安を確認する。
 // 使い方: npm run build && npx vite preview --port 4173 を起動してから
-//   node scripts/bot.mjs [キャラクター=knight] [うまさ=0.5] [早送り=6] [永続強化レベル=0]
+//   node scripts/bot.mjs [キャラクター=knight] [うまさ=0.5] [早送り=6] [永続強化レベル=0] [面=dungeon]
 import { createRequire } from 'node:module';
 
 const { chromium } = createRequire(import.meta.url)('playwright-core');
 const BASE = process.env.BASE_URL ?? 'http://localhost:4173/';
-const [char = 'knight', skillArg = '0.5', stepsArg = '6', metaArg = '0'] = process.argv.slice(2);
+const [char = 'knight', skillArg = '0.5', stepsArg = '6', metaArg = '0', stage = 'dungeon'] = process.argv.slice(2);
 const skill = Number(skillArg);
 const steps = Number(stepsArg);
 const metaLevel = Number(metaArg);
@@ -15,33 +15,38 @@ const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 page.on('pageerror', (e) => console.log('pageerror:', e.message));
 
 await page.addInitScript(
-  ([c, m]) => {
+  ([c, m, st]) => {
+    const none = { time: 0, kills: 0, level: 1, cleared: false, dragon: false };
     localStorage.setItem(
-      'dungeon-survivors:save:v1',
+      'dungeon-survivors:save:v2',
       JSON.stringify({
-        version: 1,
+        version: 2,
         coins: 0,
         meta: { atk: m, hp: m, speed: m, xp: m, coin: m, revive: m > 0 ? 1 : 0 },
         unlocked: ['knight', 'mage', 'thief'],
         selected: c,
-        best: { time: 0, kills: 0, level: 1, cleared: false, dragon: false },
+        stage: st,
+        // どの面でも始められるよう、全部の面をクリアずみにしておく
+        best: { dungeon: { ...none, cleared: true, dragon: true }, iceCave: { ...none, cleared: true, dragon: true } },
         muted: true,
         plays: 0,
       }),
     );
   },
-  [char, metaLevel],
+  [char, metaLevel, stage],
 );
 
 await page.goto(`${BASE}?debug`);
 await page.waitForFunction(() => window.__ds?.scene.isActive('Title'));
 await page.evaluate(() => window.__ds.scene.getScene('Title').scene.start('Game'));
 await page.waitForFunction(() => window.__ds.scene.isActive('Hud'));
+const playing = await page.evaluate(() => window.__ds.scene.getScene('Game').stage.id);
+if (playing !== stage) throw new Error(`面 ${stage} を始められませんでした（始まったのは ${playing}）`);
 
 await page.evaluate(
   ([stepCount, skillLevel]) => {
     const g = window.__ds.scene.getScene('Game');
-    const log = (window.__log = { marks: [], minHp: 1, hits: 0, midBossDead: null, dragonSeen: null, lastHp: g.hp });
+    const log = (window.__log = { marks: [], minHp: 1, hits: 0, by: {}, midBossDead: null, dragonSeen: null, lastHp: g.hp });
     g.debug.steps = stepCount;
     g.debug.autoPick = (choices) => {
       const evo = choices.findIndex((c) => c.kind === 'evolve');
@@ -54,7 +59,18 @@ await page.evaluate(
     let wander = Math.random() * Math.PI * 2;
 
     g.events.on('postupdate', () => {
-      if (g.hp < log.lastHp) log.hits++;
+      if (g.hp < log.lastHp) {
+        log.hits++;
+        // だれに当たったかの目安: ふれているてきがいればそのてき、いなければ玉
+        let src = 'たま';
+        for (const e of g.enemies) {
+          if (e.active && Math.hypot(e.x - g.px, e.y - g.py) < e.radius + 18 + 30) {
+            src = e.def.name;
+            break;
+          }
+        }
+        log.by[src] = (log.by[src] ?? 0) + 1;
+      }
       log.lastHp = g.hp;
       log.minHp = Math.min(log.minHp, g.hp / g.stats.maxHp);
       if (g.elapsed >= nextMark) {
@@ -68,7 +84,7 @@ await page.evaluate(
         });
         nextMark += 30;
       }
-      if (log.midBossDead === null && g.midBossSpawned && !g.enemies.some((e) => e.active && e.def.id === 'orcKing'))
+      if (log.midBossDead === null && g.midBossSpawned && !g.enemies.some((e) => e.active && e.def.boss === 1))
         log.midBossDead = Math.round(g.elapsed);
       if (g.cleared && log.dragonSeen === null) log.dragonSeen = Math.round(g.elapsed);
 
@@ -90,6 +106,12 @@ await page.evaluate(
         if (e.def.boss === 1 && e.aiState > 0 && d < 600 && skillLevel >= 0.5) {
           fx += (-dy / (d + e.radius)) * 3;
           fy += (dx / (d + e.radius)) * 3;
+          continue;
+        }
+        // ふつうのてきのとっしんも、近ければ横へよける
+        if (!e.def.boss && e.def.charge && e.aiState > 0 && d < 260 && skillLevel >= 0.5) {
+          fx += -dy / (d + e.radius);
+          fy += dx / (d + e.radius);
           continue;
         }
         if (d > reach) continue;
@@ -159,12 +181,18 @@ const result = await page.evaluate(() => {
   };
 });
 
-console.log(`\n== ${char} うまさ=${skill} 永続強化=${metaLevel} (実時間 ${Math.round((Date.now() - started) / 1000)}秒) ==`);
+console.log(`\n== ${stage} ${char} うまさ=${skill} 永続強化=${metaLevel} (実時間 ${Math.round((Date.now() - started) / 1000)}秒) ==`);
 for (const m of result.log.marks) {
   console.log(`  ${String(m.t).padStart(3)}秒  Lv${String(m.lv).padStart(2)}  たおした数 ${String(m.kills).padStart(4)}  HP ${String(m.hp).padStart(3)}%  てき ${String(m.enemies).padStart(3)}  与ダメージ ${m.dmg}`);
 }
 console.log(
-  `  結果: ${result.dragon ? '完全クリア' : result.cleared ? 'クリア（ドラゴンに負け）' : 'ゲームオーバー'}  時間 ${result.time}秒  Lv${result.level}  ${result.kills}体  コイン ${result.coins}`,
+  `  結果: ${result.dragon ? '完全クリア' : result.cleared ? 'クリア（最後のボスに負け）' : 'ゲームオーバー'}  時間 ${result.time}秒  Lv${result.level}  ${result.kills}体  コイン ${result.coins}`,
 );
 console.log(`  被弾 ${result.log.hits}回  中ボス撃破 ${result.log.midBossDead ?? '-'}秒  ${result.loadout}`);
+console.log(
+  `  内訳: ${Object.entries(result.log.by)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `${k} ${v}`)
+    .join('  ')}`,
+);
 await browser.close();
