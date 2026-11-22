@@ -149,6 +149,28 @@ describe('drawChoices', () => {
     }
   });
 
+  it('武器を出せるときは、必ず1つ以上の武器（進化をふくむ）が入る', () => {
+    const loadout: Loadout = {
+      weapons: [{ id: 'sword', level: 2, evolved: false }],
+      passives: [{ id: 'book', level: 1 }],
+    };
+    for (let seed = 0; seed < 300; seed++) {
+      const choices = drawChoices(loadout, mulberry32(seed));
+      expect(choices.some((c) => c.kind === 'weapon' || c.kind === 'evolve')).toBe(true);
+      expect(new Set(choices.map(key)).size).toBe(3);
+    }
+  });
+
+  it('武器が全部最大なら、パッシブだけでもよい', () => {
+    const loadout: Loadout = {
+      weapons: WEAPON_IDS.slice(0, MAX_WEAPONS).map((id) => ({ id, level: MAX_SKILL_LEVEL, evolved: true })),
+      passives: [],
+    };
+    const choices = drawChoices(loadout, mulberry32(4));
+    expect(choices).toHaveLength(3);
+    expect(choices.every((c) => c.kind === 'passive')).toBe(true);
+  });
+
   it('同じ種なら同じ結果になる', () => {
     expect(drawChoices(newLoadout('ice'), mulberry32(7))).toEqual(drawChoices(newLoadout('ice'), mulberry32(7)));
   });

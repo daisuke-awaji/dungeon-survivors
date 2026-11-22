@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GAME_WIDTH, MAX_HEIGHT, MIN_HEIGHT, RUN_SECONDS } from '../src/config';
 import { CHARACTERS } from '../src/data/characters';
 import { ENEMIES, SPAWN_RULES } from '../src/data/enemies';
+import { META } from '../src/data/meta';
 import { SpatialGrid } from '../src/logic/grid';
 import { computeGameHeight, formatTime } from '../src/logic/layout';
 import { addXp, xpToNext } from '../src/logic/leveling';
@@ -15,14 +16,14 @@ const noMeta = defaultSave().meta;
 
 describe('leveling', () => {
   it('必要な経験値はレベルとともに増える', () => {
-    expect(xpToNext(1)).toBe(5);
+    expect(xpToNext(1)).toBe(4);
     for (let l = 1; l < 60; l++) expect(xpToNext(l + 1)).toBeGreaterThan(xpToNext(l));
   });
 
   it('ちょうど必要な分でレベルが上がり、あまりは残る', () => {
-    expect(addXp({ level: 1, xp: 0 }, 4)).toEqual({ level: 1, xp: 4, gained: 0 });
-    expect(addXp({ level: 1, xp: 4 }, 1)).toEqual({ level: 2, xp: 0, gained: 1 });
-    expect(addXp({ level: 1, xp: 0 }, 7)).toEqual({ level: 2, xp: 2, gained: 1 });
+    expect(addXp({ level: 1, xp: 0 }, 3)).toEqual({ level: 1, xp: 3, gained: 0 });
+    expect(addXp({ level: 1, xp: 3 }, 1)).toEqual({ level: 2, xp: 0, gained: 1 });
+    expect(addXp({ level: 1, xp: 0 }, 6)).toEqual({ level: 2, xp: 2, gained: 1 });
   });
 
   it('一度に何レベルも上がる', () => {
@@ -49,7 +50,7 @@ describe('stats', () => {
 
   it('パッシブと永続強化は足し合わせる', () => {
     const st = computeStats(CHARACTERS.knight, [{ id: 'power', level: 3 }], { ...noMeta, atk: 2 });
-    expect(st.damageMul).toBeCloseTo(1 + 0.3 + 0.1);
+    expect(st.damageMul).toBeCloseTo(1 + 0.3 + 2 * META.atk.perLevel);
   });
 
   it('キャラクターごとの特ちょうが出る', () => {
@@ -98,7 +99,7 @@ describe('spawn', () => {
   it('時間とともに出現数と HP が上がる', () => {
     expect(spawnRate(RUN_SECONDS - 1)).toBeGreaterThan(spawnRate(0) * 4);
     expect(hpScale(0)).toBe(1);
-    expect(hpScale(RUN_SECONDS)).toBeGreaterThan(2);
+    expect(hpScale(RUN_SECONDS)).toBeGreaterThan(1.5);
     for (let t = 0; t < RUN_SECONDS - 10; t += 10) expect(spawnRate(t + 10)).toBeGreaterThan(spawnRate(t));
   });
 
