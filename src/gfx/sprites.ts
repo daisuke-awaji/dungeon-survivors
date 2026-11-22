@@ -582,8 +582,8 @@ export const FLOORS: Record<string, FloorColors> = {
   floor: { base: '#211f38', shades: ['#2c2b47', '#2f2e4c', '#292842', '#2d2c49'], speck: 'rgba(255,255,255,0.045)' },
   // 白い雪玉や水色のジェムがまぎれないよう、暗めの青にする
   floor_ice: {
-    base: '#17324a',
-    shades: ['#24506e', '#275574', '#214a66', '#255271'],
+    base: '#0d1d2c',
+    shades: ['#15314a', '#17354f', '#132d44', '#16334c'],
     speck: 'rgba(200,235,255,0.16)',
     crack: 'rgba(200,235,255,0.13)',
   },

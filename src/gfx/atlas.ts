@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { FONT_FAMILY } from '../config';
-import { drawFloor, FLOORS, SPRITES } from './sprites';
+import { artKey } from './charArt';
+import { drawFloor, FLOORS, SPRITES, type SpriteDef } from './sprites';
 
 export const ATLAS = 'atlas';
 export const DIGITS = 'digits';
@@ -17,13 +18,24 @@ function canvasTexture(scene: Phaser.Scene, key: string, w: number, h: number): 
   return tex;
 }
 
-/** 画像ファイルを使わず、起動時に Canvas 2D ですべての絵をかく */
+/** 絵のファイルがあるキャラクターはその絵を、ないものはコードでかいた絵を使う */
+function resolveSprites(scene: Phaser.Scene): SpriteDef[] {
+  return SPRITES.map((s) => {
+    const key = artKey(s.name);
+    if (!scene.textures.exists(key)) return s;
+    const img = scene.textures.get(key).getSourceImage() as CanvasImageSource & { width: number; height: number };
+    return { name: s.name, w: img.width, h: img.height, draw: (c) => c.drawImage(img, 0, 0) };
+  });
+}
+
+/** 起動時に1枚のテクスチャアトラスをつくる。キャラクターは絵のファイル、ほかは Canvas 2D でかく */
 export function buildTextures(scene: Phaser.Scene): void {
   if (scene.textures.exists(ATLAS)) return;
 
   const atlas = canvasTexture(scene, ATLAS, ATLAS_SIZE, ATLAS_SIZE);
   const c = atlas.getContext();
-  const sorted = [...SPRITES].sort((a, b) => b.h - a.h);
+  const sprites = resolveSprites(scene);
+  const sorted = [...sprites].sort((a, b) => b.h - a.h);
   let x = PAD;
   let y = PAD;
   let rowH = 0;
@@ -46,6 +58,10 @@ export function buildTextures(scene: Phaser.Scene): void {
     rowH = Math.max(rowH, s.h);
   }
   atlas.refresh();
+  const fromArt = SPRITES.filter((s) => scene.textures.exists(artKey(s.name))).map((s) => s.name);
+  for (const name of fromArt) scene.textures.remove(artKey(name));
+  // 動作確認で、どのキャラクターが絵のファイルを使ったかを見る
+  (atlas.customData as { fromArt?: string[] }).fromArt = fromArt;
 
   for (const [key, colors] of Object.entries(FLOORS)) {
     const floor = canvasTexture(scene, key, 256, 256);
