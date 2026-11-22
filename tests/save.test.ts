@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { SAVE_KEY } from '../src/config';
+import { LEGACY_SAVE_KEY, SAVE_KEY } from '../src/config';
 import { CHARACTERS } from '../src/data/characters';
 import { META } from '../src/data/meta';
-import { defaultSave, loadSave, sanitizeSave, writeSave, type SaveData } from '../src/logic/save';
+import { defaultBest, defaultSave, loadSave, sanitizeSave, writeSave, type SaveData } from '../src/logic/save';
 import { buyCharacter, buyMeta, metaCost, selectCharacter } from '../src/logic/shop';
 
-function memoryStorage(initial?: string) {
+function memoryStorage(initial?: string, key = SAVE_KEY) {
   const map = new Map<string, string>();
-  if (initial !== undefined) map.set(SAVE_KEY, initial);
+  if (initial !== undefined) map.set(key, initial);
   return {
+    map,
     getItem: (k: string) => map.get(k) ?? null,
     setItem: (k: string, v: string) => void map.set(k, v),
   };
@@ -17,21 +18,28 @@ function memoryStorage(initial?: string) {
 describe('sanitizeSave', () => {
   it('正しいデータはそのまま通る', () => {
     const data: SaveData = {
-      version: 1,
+      version: 2,
       coins: 123,
       meta: { atk: 2, hp: 1, speed: 0, xp: 5, coin: 3, revive: 1 },
       unlocked: ['knight', 'thief'],
       selected: 'thief',
-      best: { time: 300, kills: 900, level: 25, cleared: true, dragon: false },
+      stage: 'iceCave',
+      best: {
+        dungeon: { time: 340, kills: 900, level: 25, cleared: true, dragon: true },
+        iceCave: { time: 120, kills: 200, level: 9, cleared: false, dragon: false },
+      },
       muted: true,
       plays: 12,
     };
     expect(sanitizeSave(JSON.parse(JSON.stringify(data)))).toEqual(data);
   });
 
-  it.each([null, undefined, 1, 'x', [], {}, { version: 2 }])('こわれたデータ %j は初期値になる', (raw) => {
-    expect(sanitizeSave(raw)).toEqual(defaultSave());
-  });
+  it.each([null, undefined, 1, 'x', [], {}, { version: 0 }, { version: 3 }, { version: '2' }])(
+    'こわれたデータ %j は初期値になる',
+    (raw) => {
+      expect(sanitizeSave(raw)).toEqual(defaultSave());
+    },
+  );
 
   it('範囲外の数値は上限・下限に直す', () => {
     const s = sanitizeSave({
@@ -60,8 +68,17 @@ describe('sanitizeSave', () => {
   });
 
   it('記録の型がちがうときは初期値にする', () => {
-    const s = sanitizeSave({ version: 1, best: { time: '300', kills: -4, level: 0, cleared: 'yes', dragon: 1 } });
-    expect(s.best).toEqual({ time: 0, kills: 0, level: 1, cleared: false, dragon: false });
+    const bad = { time: '300', kills: -4, level: 0, cleared: 'yes', dragon: 1 };
+    expect(sanitizeSave({ version: 1, best: bad }).best).toEqual(defaultSave().best);
+    expect(sanitizeSave({ version: 2, best: { dungeon: bad, iceCave: 5 } }).best).toEqual(defaultSave().best);
+    expect(sanitizeSave({ version: 2, best: 'x' }).best).toEqual(defaultSave().best);
+  });
+
+  it('知らない面や、まだ遊べない面は選べない', () => {
+    expect(sanitizeSave({ version: 2, stage: 'iceCave' }).stage).toBe('dungeon');
+    expect(sanitizeSave({ version: 2, stage: 'moon' }).stage).toBe('dungeon');
+    expect(sanitizeSave({ version: 2, stage: 'iceCave', best: { dungeon: { cleared: true } } }).stage).toBe('dungeon');
+    expect(sanitizeSave({ version: 2, stage: 'iceCave', best: { dungeon: { dragon: true } } }).stage).toBe('iceCave');
   });
 
   it('プロトタイプをよごすキーがあっても影響しない', () => {
@@ -70,6 +87,57 @@ describe('sanitizeSave', () => {
     expect(s.coins).toBe(0);
     expect(s.meta.atk).toBe(0);
     expect(({} as Record<string, unknown>).coins).toBeUndefined();
+  });
+});
+
+describe('version 1 からの引きつぎ', () => {
+  const v1 = {
+    version: 1,
+    coins: 456,
+    meta: { atk: 2, hp: 1, speed: 0, xp: 5, coin: 3, revive: 1 },
+    unlocked: ['knight', 'mage'],
+    selected: 'mage',
+    best: { time: 300, kills: 900, level: 25, cleared: true, dragon: false },
+    muted: true,
+    plays: 12,
+  };
+
+  it('コイン・強化・キャラクター・音の設定・回数はそのまま残り、記録は面1のものになる', () => {
+    expect(sanitizeSave(JSON.parse(JSON.stringify(v1)))).toEqual({
+      version: 2,
+      coins: 456,
+      meta: v1.meta,
+      unlocked: ['knight', 'mage'],
+      selected: 'mage',
+      stage: 'dungeon',
+      best: { dungeon: v1.best, iceCave: defaultBest() },
+      muted: true,
+      plays: 12,
+    });
+  });
+
+  it('面1のドラゴンをたおしていれば、引きついだあと面2を選べる', () => {
+    const s = sanitizeSave({ ...v1, best: { ...v1.best, dragon: true } });
+    expect(s.stage).toBe('dungeon');
+    expect(s.best.dungeon.dragon).toBe(true);
+    expect(sanitizeSave({ ...s, stage: 'iceCave' }).stage).toBe('iceCave');
+  });
+
+  it('新しいセーブがなければ古いセーブを読み、古いセーブは書きかえない', () => {
+    const text = JSON.stringify(v1);
+    const storage = memoryStorage(text, LEGACY_SAVE_KEY);
+    const loaded = loadSave(storage);
+    expect(loaded.coins).toBe(456);
+    expect(loaded.best.dungeon).toEqual(v1.best);
+    expect(writeSave(storage, { ...loaded, coins: 500 })).toBe(true);
+    expect(storage.map.get(LEGACY_SAVE_KEY)).toBe(text);
+    expect(JSON.parse(storage.map.get(SAVE_KEY)!).version).toBe(2);
+  });
+
+  it('新しいセーブがあれば、古いセーブより優先する', () => {
+    const storage = memoryStorage(JSON.stringify(v1), LEGACY_SAVE_KEY);
+    writeSave(storage, { ...defaultSave(), coins: 7 });
+    expect(loadSave(storage).coins).toBe(7);
   });
 });
 

@@ -4,12 +4,14 @@ import {
   GAME_WIDTH,
   MAX_ENEMIES,
   MAX_ENEMIES_BOSS_PHASE,
+  MAX_MINION_BULLETS,
   MAX_PICKUPS,
   MIDBOSS_SECONDS,
   RUN_SECONDS,
 } from '../config';
 import { CHARACTERS, type CharacterDef } from '../data/characters';
 import { ENEMIES, type EnemyId } from '../data/enemies';
+import { STAGES, type StageDef } from '../data/stages';
 import { WEAPONS } from '../data/weapons';
 import { Fx } from '../game/Fx';
 import {
@@ -22,7 +24,7 @@ import {
   type PickupKind,
 } from '../game/types';
 import { WeaponSystem } from '../game/Weapons';
-import { ATLAS, FLOOR } from '../gfx/atlas';
+import { ATLAS } from '../gfx/atlas';
 import { SpatialGrid } from '../logic/grid';
 import { addXp } from '../logic/leveling';
 import { applyRun, type RunResult } from '../logic/rewards';
@@ -46,6 +48,9 @@ const HEART_DROP = 0.012;
 const MAGNET_DROP = 0.003;
 const SLOW_TINT = 0x8fd0ff;
 const WINDUP_TINT = 0xff7a7a;
+/** 氷の玉に当たると、この時間だけ足がおそくなる */
+const CHILL_TIME = 1.5;
+const CHILL_SPEED = 0.6;
 
 export interface GameDebug {
   /** 自動プレイ用の入力。null ならふつうの操作 */
@@ -72,6 +77,7 @@ export class GameScene extends Phaser.Scene {
   mode: GameMode = 'play';
   viewH = 0;
   loadoutVersion = 0;
+  stage!: StageDef;
   stats!: PlayerStats;
   loadout!: Loadout;
   fx!: Fx;
@@ -83,6 +89,7 @@ export class GameScene extends Phaser.Scene {
   private pickups: Pickup[] = [];
   private bullets: EnemyBullet[] = [];
   private activeEnemies = 0;
+  private activeBullets = 0;
   private nextUid = 1;
   private char!: CharacterDef;
   private meta!: MetaLevels;
@@ -90,6 +97,7 @@ export class GameScene extends Phaser.Scene {
   private revivesLeft = 0;
   private invuln = 0;
   private hurtFlash = 0;
+  private chillT = 0;
   private pendingLevels = 0;
   private spawnTimer = 0;
   private nextRush = RUSH_INTERVAL;
@@ -125,6 +133,7 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     const save = getSave();
+    this.stage = STAGES[save.stage];
     this.char = CHARACTERS[save.selected];
     this.meta = save.meta;
     this.loadout = newLoadout(this.char.weapon);
@@ -148,10 +157,12 @@ export class GameScene extends Phaser.Scene {
     this.pickups = [];
     this.bullets = [];
     this.activeEnemies = 0;
+    this.activeBullets = 0;
     this.nextUid = 1;
     this.revivesLeft = this.stats.revives;
     this.invuln = 1;
     this.hurtFlash = 0;
+    this.chillT = 0;
     this.pendingLevels = 0;
     this.spawnTimer = 0;
     this.nextRush = RUSH_INTERVAL;
@@ -166,7 +177,7 @@ export class GameScene extends Phaser.Scene {
     this.grid.clear();
 
     this.floor = this.add
-      .tileSprite(0, 0, GAME_WIDTH, this.viewH, FLOOR)
+      .tileSprite(0, 0, GAME_WIDTH, this.viewH, this.stage.floor)
       .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(DEPTH.floor);
@@ -317,6 +328,7 @@ export class GameScene extends Phaser.Scene {
       .setFlipX(this.facingLeft)
       .setAlpha(blink ? 0.45 : 1);
     if (this.hurtFlash > 0) this.playerSprite.setTint(0xff6b6b);
+    else if (this.chillT > 0) this.playerSprite.setTint(SLOW_TINT);
     else this.playerSprite.clearTint();
     this.shadow.setPosition(this.px, this.py + 38);
     this.aura.setPosition(this.px, this.py + 10).setScale(1.25 + Math.sin(this.elapsed * 4) * 0.08);
@@ -332,9 +344,11 @@ export class GameScene extends Phaser.Scene {
   private updatePlayer(dt: number): void {
     const input = this.readInput();
     const moving = input.x !== 0 || input.y !== 0;
+    if (this.chillT > 0) this.chillT -= dt;
     if (moving) {
-      this.px += input.x * this.stats.moveSpeed * dt;
-      this.py += input.y * this.stats.moveSpeed * dt;
+      const speed = this.stats.moveSpeed * (this.chillT > 0 ? CHILL_SPEED : 1);
+      this.px += input.x * speed * dt;
+      this.py += input.y * speed * dt;
       this.walk += dt * 16;
       if (Math.abs(input.x) > 0.2) this.facingLeft = input.x < 0;
     } else {
@@ -352,20 +366,20 @@ export class GameScene extends Phaser.Scene {
     if (!this.midBossSpawned && t >= MIDBOSS_SECONDS) {
       this.midBossSpawned = true;
       const [x, y] = this.edgePoint();
-      this.spawnEnemy('orcKing', x, y);
-      this.hud.banner('オークキングが\nあらわれた！', '#ff8a8a');
+      this.spawnEnemy(this.stage.midBoss, x, y);
+      this.hud.banner(`${ENEMIES[this.stage.midBoss].name}が\nあらわれた！`, '#ff8a8a');
       sfx.play('warn');
     }
 
     if (!this.cleared && t >= RUN_SECONDS) this.onSurvived();
 
     const cap = this.cleared ? MAX_ENEMIES_BOSS_PHASE : MAX_ENEMIES;
-    this.spawnTimer += dt * spawnRate(t);
+    this.spawnTimer += dt * spawnRate(this.stage, t);
     while (this.spawnTimer >= 1) {
       this.spawnTimer -= 1;
       if (this.activeEnemies >= cap) continue;
       const [x, y] = this.edgePoint();
-      this.spawnEnemy(pickEnemy(t, Math.random), x, y);
+      this.spawnEnemy(pickEnemy(this.stage, t, Math.random), x, y);
     }
 
     if (!this.cleared && t >= this.nextRush) {
@@ -388,7 +402,7 @@ export class GameScene extends Phaser.Scene {
   private rush(): void {
     const t = this.elapsed;
     const n = rushSize(t);
-    const id: EnemyId = t < 100 ? 'bat' : pickEnemy(t, Math.random);
+    const id: EnemyId = t < 100 ? this.stage.earlyRush : pickEnemy(this.stage, t, Math.random);
     const rx = GAME_WIDTH / 2 + VIEW_MARGIN;
     const ry = this.viewH / 2 + VIEW_MARGIN;
     for (let i = 0; i < n && this.activeEnemies < MAX_ENEMIES + 40; i++) {
@@ -424,6 +438,8 @@ export class GameScene extends Phaser.Scene {
         tint: EnemyTint.None,
         aiT: 0,
         aiState: 0,
+        burst: 0,
+        burstT: 0,
         dirX: 0,
         dirY: 0,
         sprite: this.add.image(0, 0, ATLAS, def.frame),
@@ -436,7 +452,7 @@ export class GameScene extends Phaser.Scene {
     e.x = x;
     e.y = y;
     e.radius = def.radius;
-    e.maxHp = Math.round(def.hp * (def.boss ? 1 : hpScale(this.elapsed)));
+    e.maxHp = Math.round(def.hp * (def.boss ? 1 : hpScale(this.stage, this.elapsed)));
     e.hp = e.maxHp;
     e.speed = def.speed * (def.boss ? 1 : 0.9 + Math.random() * 0.2);
     e.damage = def.damage;
@@ -448,8 +464,11 @@ export class GameScene extends Phaser.Scene {
     e.shieldCd = 0;
     e.phase = Math.random() * Math.PI * 2;
     e.tint = EnemyTint.None;
-    e.aiT = def.boss ? 2.5 : 0;
+    // ふつうのてきは、動き出すタイミングをばらばらにする
+    e.aiT = def.boss ? 2.5 : def.charge || def.shoot ? 1 + Math.random() * 2 : 0;
     e.aiState = 0;
+    e.burst = 0;
+    e.burstT = 0;
     e.sprite
       .setFrame(def.frame)
       .setPosition(x, y)
@@ -484,12 +503,14 @@ export class GameScene extends Phaser.Scene {
         speed *= e.slowF;
       }
 
-      if (e.def.boss === 1) {
+      const charge = e.def.charge;
+      const shoot = e.def.shoot;
+      if (charge) {
         e.aiT -= dt;
         if (e.aiState === 0) {
-          if (e.aiT <= 0 && d < 720) {
+          if (e.aiT <= 0 && d < charge.range) {
             e.aiState = 1;
-            e.aiT = 0.8;
+            e.aiT = charge.windup;
           }
         } else if (e.aiState === 1) {
           speed = 0;
@@ -497,23 +518,52 @@ export class GameScene extends Phaser.Scene {
           e.dirY = my;
           if (e.aiT <= 0) {
             e.aiState = 2;
-            e.aiT = 0.7;
+            e.aiT = charge.time;
           }
         } else {
-          speed = e.speed * 3;
+          speed = e.speed * charge.mul;
           mx = e.dirX;
           my = e.dirY;
           if (e.aiT <= 0) {
             e.aiState = 0;
-            e.aiT = 3.5;
+            e.aiT = charge.rest * (e.def.boss ? 1 : 0.8 + Math.random() * 0.6);
+            if (charge.volley > 0) this.snowVolley(e, Math.atan2(dy, dx), charge.volley);
           }
         }
-      } else if (e.def.boss === 2) {
+      } else if (shoot) {
+        e.aiT -= dt;
+        if (d < shoot.hold) speed = 0;
+        if (e.aiT <= 0 && d < shoot.range && this.inView(e, 10)) {
+          if (this.activeBullets < MAX_MINION_BULLETS) {
+            e.aiT = shoot.every;
+            this.spawnBullet(e.x, e.y - 10, (dx / d) * shoot.speed, (dy / d) * shoot.speed, shoot.damage, 'snowball', 0);
+          } else {
+            e.aiT = 0.4;
+          }
+        }
+      } else if (e.def.breath === 'fire') {
         e.aiT -= dt;
         if (e.aiT <= 0) {
           e.aiT = 2.4;
           e.aiState++;
           this.dragonAttack(e, Math.atan2(dy, dx), e.aiState % 3 === 0);
+        }
+      } else if (e.def.breath === 'ice') {
+        // 3回に1回は全方向（2れん発）、それ以外はねらって3れん発
+        const ring = e.aiState % 3 === 0;
+        e.aiT -= dt;
+        if (e.aiT <= 0) {
+          e.aiT = 2.6;
+          e.aiState++;
+          e.burst = e.aiState % 3 === 0 ? 2 : 3;
+          e.burstT = 0;
+        } else if (e.burst > 0) {
+          e.burstT -= dt;
+          if (e.burstT <= 0) {
+            e.burst--;
+            e.burstT = ring ? 0.45 : 0.25;
+            this.iceBreath(e, Math.atan2(dy, dx), ring, e.burst % 2 === 1);
+          }
         }
       }
 
@@ -547,7 +597,7 @@ export class GameScene extends Phaser.Scene {
       const want =
         e.flashT > 0
           ? EnemyTint.Flash
-          : e.def.boss === 1 && e.aiState === 1
+          : e.def.charge && e.aiState === 1
             ? EnemyTint.Windup
             : e.slowT > 0
               ? EnemyTint.Slow
@@ -577,7 +627,38 @@ export class GameScene extends Phaser.Scene {
     sfx.play('boom');
   }
 
-  private spawnBullet(x: number, y: number, vx: number, vy: number, damage: number): void {
+  /** 氷のブレス。当たると少しの間、足がおそくなる */
+  private iceBreath(e: Enemy, aim: number, ring: boolean, offset: boolean): void {
+    const n = ring ? 14 : 5;
+    const speed = ring ? 260 : 330;
+    for (let i = 0; i < n; i++) {
+      const a = ring ? ((i + (offset ? 0.5 : 0)) / n) * Math.PI * 2 : aim + (i - (n - 1) / 2) * 0.2;
+      this.spawnBullet(e.x, e.y - 20, Math.cos(a) * speed, Math.sin(a) * speed, Math.round(e.damage * 0.6), 'eice', CHILL_TIME);
+    }
+    sfx.play('boom');
+  }
+
+  private snowVolley(e: Enemy, aim: number, count: number): void {
+    for (let i = 0; i < count; i++) {
+      const a = aim + (i - (count - 1) / 2) * 0.3;
+      this.spawnBullet(e.x, e.y - 20, Math.cos(a) * 300, Math.sin(a) * 300, Math.round(e.damage * 0.6), 'snowball', 0);
+    }
+    sfx.play('boom');
+  }
+
+  private inView(e: Enemy, margin: number): boolean {
+    return Math.abs(e.x - this.px) < GAME_WIDTH / 2 - margin && Math.abs(e.y - this.py) < this.viewH / 2 - margin;
+  }
+
+  private spawnBullet(
+    x: number,
+    y: number,
+    vx: number,
+    vy: number,
+    damage: number,
+    frame = 'efire',
+    chill = 0,
+  ): void {
     let b = this.bullets.find((v) => !v.active);
     if (!b) {
       b = {
@@ -588,6 +669,7 @@ export class GameScene extends Phaser.Scene {
         vy: 0,
         life: 0,
         damage: 0,
+        chill: 0,
         sprite: this.add.image(0, 0, ATLAS, 'efire').setDepth(DEPTH.fx - 15),
       };
       this.bullets.push(b);
@@ -599,7 +681,9 @@ export class GameScene extends Phaser.Scene {
     b.vy = vy;
     b.life = 5;
     b.damage = damage;
-    b.sprite.setPosition(x, y).setVisible(true);
+    b.chill = chill;
+    b.sprite.setFrame(frame).setPosition(x, y).setVisible(true);
+    this.activeBullets++;
   }
 
   private updateBullets(dt: number): void {
@@ -610,10 +694,11 @@ export class GameScene extends Phaser.Scene {
       b.life -= dt;
       b.sprite.setPosition(b.x, b.y);
       const hit = Math.hypot(b.x - this.px, b.y - this.py) < 16 + PLAYER_RADIUS;
-      if (hit) this.hurtPlayer(b.damage);
+      if (hit) this.hurtPlayer(b.damage, b.chill);
       if (hit || b.life <= 0) {
         b.active = false;
         b.sprite.setVisible(false);
+        this.activeBullets--;
       }
     }
   }
@@ -833,9 +918,13 @@ export class GameScene extends Phaser.Scene {
 
   // ---- プレイヤーのダメージ ----
 
-  private hurtPlayer(damage: number): void {
+  private hurtPlayer(damage: number, chill = 0): void {
     if (this.invuln > 0 || this.mode !== 'play' || this.debug.invincible) return;
     this.hp -= damage;
+    if (chill > 0) {
+      this.chillT = Math.max(this.chillT, chill);
+      this.fx.ring(this.px, this.py, 110, SLOW_TINT, 0.5);
+    }
     this.invuln = INVULN_TIME;
     this.hurtFlash = 0.15;
     this.shake(0.008);
@@ -925,8 +1014,8 @@ export class GameScene extends Phaser.Scene {
     this.fx.flash(this.px, this.py, 700, 0xffffff, 0.6);
     this.shake(0.01);
     const [x, y] = this.edgePoint();
-    this.spawnEnemy('dragon', x, y);
-    this.hud.banner('5分 生き残った！\nさいごのボス ドラゴン！', '#ffe14d', 3200);
+    this.spawnEnemy(this.stage.finalBoss, x, y);
+    this.hud.banner(`5分 生き残った！\nさいごのボス ${ENEMIES[this.stage.finalBoss].name}！`, '#ffe14d', 3200);
     sfx.play('warn');
   }
 
@@ -935,6 +1024,7 @@ export class GameScene extends Phaser.Scene {
     this.mode = 'over';
     this.resetJoystick();
     const run: RunResult = {
+      stage: this.stage.id,
       time: this.elapsed,
       kills: this.kills,
       level: this.level,
@@ -947,7 +1037,7 @@ export class GameScene extends Phaser.Scene {
     sfx.play(this.cleared ? 'win' : 'lose');
     if (!this.dragonSlain) this.playerSprite.setAngle(90);
     this.time.delayedCall(this.dragonSlain ? 1500 : 900, () =>
-      this.hud.showResult({ run, coins: result.coins, newBest: result.newBest }),
+      this.hud.showResult({ run, coins: result.coins, newBest: result.newBest, unlocked: result.unlocked }),
     );
   }
 }

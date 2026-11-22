@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { sfx } from '../audio/sfx';
 import { GAME_WIDTH, RUN_SECONDS } from '../config';
+import { ENEMIES } from '../data/enemies';
 import { PASSIVES } from '../data/passives';
+import { STAGES, type StageId } from '../data/stages';
 import { WEAPONS } from '../data/weapons';
 import { ATLAS } from '../gfx/atlas';
 import { formatTime } from '../logic/layout';
@@ -16,6 +18,8 @@ export interface ResultInfo {
   run: RunResult;
   coins: number;
   newBest: boolean;
+  /** このプレイで新しく遊べるようになった面 */
+  unlocked: StageId[];
 }
 
 interface CardView {
@@ -116,7 +120,9 @@ export class HudScene extends Phaser.Scene {
 
     this.timerText = this.add.text(W / 2, 80, '', textStyle(48)).setOrigin(0.5);
 
-    this.add.image(42, 66, ATLAS, 'slime').setScale(0.62);
+    // たおした数とコインは、白っぽいボスがうしろに来ても読めるよう、暗い下地をしく
+    this.add.graphics().fillStyle(COLORS.ink, 0.85).fillRoundedRect(12, 42, 160, 90, 18);
+    this.add.image(42, 66, ATLAS, this.g.stage.killIcon).setScale(0.62);
     this.killText = this.add.text(70, 66, '', textStyle(28)).setOrigin(0, 0.5);
     this.add.image(42, 108, ATLAS, 'coin');
     this.coinText = this.add.text(70, 108, '', textStyle(28, '#ffe14d')).setOrigin(0, 0.5);
@@ -155,7 +161,7 @@ export class HudScene extends Phaser.Scene {
     }
 
     const remain = Math.max(0, Math.ceil(RUN_SECONDS - g.elapsed));
-    const timer = g.cleared ? 'ドラゴンをたおせ！' : formatTime(remain);
+    const timer = g.cleared ? `${ENEMIES[g.stage.finalBoss].name}をたおせ！` : formatTime(remain);
     if (timer !== this.shownTimer) {
       this.shownTimer = timer;
       this.timerText
@@ -225,8 +231,11 @@ export class HudScene extends Phaser.Scene {
   banner(text: string, color = '#ffffff', hold = 2200): void {
     if (!this.ready) return;
     this.tweens.killTweensOf(this.bannerText);
-    this.bannerText.setText(text).setColor(color).setAlpha(1).setScale(0.6);
-    this.tweens.add({ targets: this.bannerText, scale: 1, duration: 260, ease: 'Back.easeOut' });
+    this.bannerText.setText(text).setColor(color).setAlpha(1);
+    // 長い名前でも画面からはみ出さないよう、はばに合わせて小さくする
+    const fit = Math.min(1, (GAME_WIDTH - 40) / this.bannerText.width);
+    this.bannerText.setScale(0.6 * fit);
+    this.tweens.add({ targets: this.bannerText, scale: fit, duration: 260, ease: 'Back.easeOut' });
     this.tweens.add({ targets: this.bannerText, alpha: 0, duration: 400, delay: hold });
   }
 
@@ -363,18 +372,29 @@ export class HudScene extends Phaser.Scene {
     // 結果の見出しのうしろに「ドラゴンをたおせ！」などが残らないようにする
     this.timerText.setVisible(false);
 
+    const bossName = ENEMIES[STAGES[run.stage].finalBoss].name;
     const head = run.dragon
-      ? { title: '完全クリア！！', color: '#ffe14d', sub: 'ドラゴンを たおした！' }
+      ? { title: '完全クリア！！', color: '#ffe14d', sub: `${bossName}を たおした！` }
       : run.cleared
-        ? { title: 'クリア！', color: '#6ee7a0', sub: '5分 生き残った！ 次はドラゴンをたおそう' }
+        ? { title: 'クリア！', color: '#6ee7a0', sub: `5分 生き残った！ 次は${bossName}をたおそう` }
         : { title: 'ゲームオーバー', color: '#ff8a8a', sub: 'また ちょうせんしよう！' };
+    const opened = info.unlocked.length > 0 ? STAGES[info.unlocked[0]] : null;
 
     const top = Math.max(190, H / 2 - 352);
     const title = this.add
       .text(W / 2, top, head.title, textStyle(76, head.color, { strokeThickness: 14 }))
       .setOrigin(0.5);
     box.add(title);
-    box.add(this.add.text(W / 2, top + 84, head.sub, textStyle(30)).setOrigin(0.5));
+    const sub = this.add
+      .text(
+        W / 2,
+        top + 84,
+        opened ? `新しい面「${opened.name}」で あそべるようになった！` : head.sub,
+        textStyle(30, opened ? '#ffe14d' : '#ffffff'),
+      )
+      .setOrigin(0.5);
+    sub.setScale(Math.min(1, (W - 40) / sub.width));
+    box.add(sub);
     this.tweens.add({ targets: title, scale: { from: 0.4, to: 1 }, duration: 380, ease: 'Back.easeOut' });
 
     const panelY = top + 150;

@@ -1,9 +1,8 @@
 import Phaser from 'phaser';
 import { FONT_FAMILY } from '../config';
-import { drawFloor, SPRITES } from './sprites';
+import { drawFloor, FLOORS, SPRITES } from './sprites';
 
 export const ATLAS = 'atlas';
-export const FLOOR = 'floor';
 export const DIGITS = 'digits';
 
 const ATLAS_SIZE = 1024;
@@ -48,9 +47,11 @@ export function buildTextures(scene: Phaser.Scene): void {
   }
   atlas.refresh();
 
-  const floor = canvasTexture(scene, FLOOR, 256, 256);
-  drawFloor(floor.getContext(), 256);
-  floor.refresh();
+  for (const [key, colors] of Object.entries(FLOORS)) {
+    const floor = canvasTexture(scene, key, 256, 256);
+    drawFloor(floor.getContext(), 256, colors);
+    floor.refresh();
+  }
 
   const digits = canvasTexture(scene, DIGITS, DIGIT_W * DIGIT_CHARS.length, DIGIT_H);
   const d = digits.getContext();

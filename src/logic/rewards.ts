@@ -1,6 +1,9 @@
+import type { StageId } from '../data/stages';
 import type { BestRecord, SaveData } from './save';
+import { unlockedStages } from './stages';
 
 export interface RunResult {
+  stage: StageId;
   /** 生き残った秒数 */
   time: number;
   kills: number;
@@ -8,7 +11,16 @@ export interface RunResult {
   /** プレイ中にひろったコイン */
   pickedCoins: number;
   cleared: boolean;
+  /** その面の最後のボス（ドラゴン）をたおした */
   dragon: boolean;
+}
+
+export interface RunOutcome {
+  save: SaveData;
+  coins: number;
+  newBest: boolean;
+  /** このプレイで新しく遊べるようになった面 */
+  unlocked: StageId[];
 }
 
 export const CLEAR_BONUS = 100;
@@ -32,11 +44,23 @@ export function isBetter(run: RunResult, best: BestRecord): boolean {
   return run.kills > best.kills;
 }
 
-export function applyRun(save: SaveData, run: RunResult, coinMul: number): { save: SaveData; coins: number; newBest: boolean } {
+/** 結果をセーブに反映する。記録は、遊んだ面のものだけを比べて更新する */
+export function applyRun(save: SaveData, run: RunResult, coinMul: number): RunOutcome {
   const coins = coinsEarned(run, coinMul);
-  const newBest = isBetter(run, save.best);
-  const best: BestRecord = newBest
-    ? { time: Math.floor(run.time), kills: run.kills, level: run.level, cleared: run.cleared, dragon: run.dragon }
+  const newBest = isBetter(run, save.best[run.stage]);
+  const best = newBest
+    ? {
+        ...save.best,
+        [run.stage]: {
+          time: Math.floor(run.time),
+          kills: run.kills,
+          level: run.level,
+          cleared: run.cleared,
+          dragon: run.dragon,
+        },
+      }
     : save.best;
-  return { save: { ...save, coins: save.coins + coins, best, plays: save.plays + 1 }, coins, newBest };
+  const before = unlockedStages(save.best);
+  const unlocked = unlockedStages(best).filter((id) => !before.includes(id));
+  return { save: { ...save, coins: save.coins + coins, best, plays: save.plays + 1 }, coins, newBest, unlocked };
 }

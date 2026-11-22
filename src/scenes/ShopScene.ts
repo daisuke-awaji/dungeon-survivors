@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { sfx } from '../audio/sfx';
 import { GAME_WIDTH } from '../config';
 import { META, META_IDS, type MetaId } from '../data/meta';
-import { ATLAS, FLOOR } from '../gfx/atlas';
+import { STAGES } from '../data/stages';
+import { ATLAS } from '../gfx/atlas';
 import { buyMeta, metaCost } from '../logic/shop';
 import { getSave, setSave } from '../store';
 import { COLORS, makeButton, panel, textStyle } from '../ui';
@@ -20,7 +21,7 @@ export class ShopScene extends Phaser.Scene {
     const H = this.scale.height;
     const save = getSave();
 
-    this.add.tileSprite(0, 0, W, H, FLOOR).setOrigin(0);
+    this.add.tileSprite(0, 0, W, H, STAGES[save.stage].floor).setOrigin(0);
     this.add.rectangle(0, 0, W, H, 0x14122b, 0.55).setOrigin(0);
 
     this.add.text(W / 2, 80, '強化ショップ', textStyle(60, '#ffe14d', { strokeThickness: 10 })).setOrigin(0.5);

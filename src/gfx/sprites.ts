@@ -85,13 +85,13 @@ function thief(c: Ctx): void {
 
 // ---- てき ----
 
-function slime(c: Ctx): void {
+function slimeBody(c: Ctx, color: string): void {
   c.beginPath();
   c.moveTo(5, 42);
   c.bezierCurveTo(5, 4, 55, 4, 55, 42);
   c.quadraticCurveTo(30, 52, 5, 42);
   c.closePath();
-  c.fillStyle = '#5fd35f';
+  c.fillStyle = color;
   c.fill();
   c.lineWidth = 4;
   c.strokeStyle = OUTLINE;
@@ -107,14 +107,22 @@ function slime(c: Ctx): void {
   c.stroke();
 }
 
-function bat(c: Ctx): void {
-  mirror(c, 36, () => poly(c, [30, 22, 20, 5, 4, 9, 10, 20, 2, 32, 17, 27, 26, 36], '#6a3fa8', OUTLINE, 3));
-  mirror(c, 36, () => poly(c, [27, 14, 26, 3, 34, 11], '#8e5bd0', OUTLINE, 3));
-  ell(c, 36, 24, 13, 13, '#8e5bd0', OUTLINE, 3);
-  eye(c, 31, 22, 4, '#1b1530', '#ffe14d');
-  eye(c, 41, 22, 4, '#1b1530', '#ffe14d');
+function slime(c: Ctx): void {
+  slimeBody(c, '#5fd35f');
+}
+
+function batBody(c: Ctx, wing: string, body: string, eyeColor: string): void {
+  mirror(c, 36, () => poly(c, [30, 22, 20, 5, 4, 9, 10, 20, 2, 32, 17, 27, 26, 36], wing, OUTLINE, 3));
+  mirror(c, 36, () => poly(c, [27, 14, 26, 3, 34, 11], body, OUTLINE, 3));
+  ell(c, 36, 24, 13, 13, body, OUTLINE, 3);
+  eye(c, 31, 22, 4, '#1b1530', eyeColor);
+  eye(c, 41, 22, 4, '#1b1530', eyeColor);
   poly(c, [32, 29, 34, 34, 36, 29], '#ffffff', null, 0);
   poly(c, [36, 29, 38, 34, 40, 29], '#ffffff', null, 0);
+}
+
+function bat(c: Ctx): void {
+  batBody(c, '#6a3fa8', '#8e5bd0', '#ffe14d');
 }
 
 function goblin(c: Ctx): void {
@@ -191,25 +199,134 @@ function orcKing(c: Ctx): void {
   c.restore();
 }
 
-function dragon(c: Ctx): void {
+interface DragonColors {
+  wing: string;
+  body: string;
+  belly: string;
+  bellyLine: string;
+  snout: string;
+  horn: string;
+  eye: string;
+}
+
+function dragonBody(c: Ctx, p: DragonColors): void {
   mirror(c, 130, () =>
-    poly(c, [124, 112, 62, 18, 8, 40, 32, 78, 6, 110, 42, 118, 30, 152, 92, 142], '#a82a22', OUTLINE, 5),
+    poly(c, [124, 112, 62, 18, 8, 40, 32, 78, 6, 110, 42, 118, 30, 152, 92, 142], p.wing, OUTLINE, 5),
   );
   mirror(c, 130, () => line(c, 118, 108, 40, 60, 'rgba(0,0,0,0.25)', 4));
-  mirror(c, 130, () => ell(c, 98, 208, 22, 13, '#a82a22', OUTLINE, 5));
-  ell(c, 130, 152, 62, 60, '#e0362c', OUTLINE, 5);
-  ell(c, 130, 164, 38, 42, '#f6c453', OUTLINE, 4);
-  for (const y of [146, 162, 178]) line(c, 104, y, 156, y, 'rgba(120,70,0,0.45)', 3);
-  mirror(c, 130, () => poly(c, [104, 54, 88, 12, 118, 44], '#f4ead5', OUTLINE, 4));
-  ell(c, 130, 84, 50, 42, '#e0362c', OUTLINE, 5);
-  ell(c, 130, 104, 28, 18, '#ee6a5c', OUTLINE, 4);
+  mirror(c, 130, () => ell(c, 98, 208, 22, 13, p.wing, OUTLINE, 5));
+  ell(c, 130, 152, 62, 60, p.body, OUTLINE, 5);
+  ell(c, 130, 164, 38, 42, p.belly, OUTLINE, 4);
+  for (const y of [146, 162, 178]) line(c, 104, y, 156, y, p.bellyLine, 3);
+  mirror(c, 130, () => poly(c, [104, 54, 88, 12, 118, 44], p.horn, OUTLINE, 4));
+  ell(c, 130, 84, 50, 42, p.body, OUTLINE, 5);
+  ell(c, 130, 104, 28, 18, p.snout, OUTLINE, 4);
   ell(c, 120, 101, 3.5, 4.5, OUTLINE, null, 0);
   ell(c, 140, 101, 3.5, 4.5, OUTLINE, null, 0);
   mirror(c, 130, () => {
-    ell(c, 108, 74, 12, 10, '#ffe14d', OUTLINE, 3);
+    ell(c, 108, 74, 12, 10, p.eye, OUTLINE, 3);
     ell(c, 109, 74, 3.5, 8, OUTLINE, null, 0);
     line(c, 92, 58, 120, 66, OUTLINE, 5);
     poly(c, [112, 116, 117, 127, 122, 117], '#ffffff', OUTLINE, 2);
+  });
+}
+
+function dragon(c: Ctx): void {
+  dragonBody(c, {
+    wing: '#a82a22',
+    body: '#e0362c',
+    belly: '#f6c453',
+    bellyLine: 'rgba(120,70,0,0.45)',
+    snout: '#ee6a5c',
+    horn: '#f4ead5',
+    eye: '#ffe14d',
+  });
+}
+
+// ---- てき（氷のどうくつ） ----
+
+function iceSlime(c: Ctx): void {
+  slimeBody(c, '#9fe8ff');
+  mirror(c, 30, () => poly(c, [14, 14, 10, 2, 22, 9], '#eafaff', OUTLINE, 3));
+}
+
+function snowBat(c: Ctx): void {
+  batBody(c, '#bcd9f2', '#f2f8ff', '#6fd6ff');
+}
+
+function iceWolf(c: Ctx): void {
+  ell(c, 26, 65, 8, 5, '#a9c4dc', OUTLINE, 3);
+  ell(c, 50, 65, 8, 5, '#a9c4dc', OUTLINE, 3);
+  poly(c, [52, 54, 72, 40, 66, 60], '#eef5fc', OUTLINE, 3);
+  rrect(c, 22, 40, 32, 24, 10, '#c3d8ea');
+  mirror(c, 38, () => poly(c, [20, 20, 15, 2, 32, 12], '#c3d8ea', OUTLINE, 3));
+  ell(c, 38, 28, 22, 19, '#dbe9f5');
+  ell(c, 38, 37, 11, 8, '#ffffff', OUTLINE, 2.5);
+  ell(c, 38, 33, 3.5, 2.5, OUTLINE, null, 0);
+  eye(c, 28, 25, 4.5, '#1b1530', '#8fe0ff');
+  eye(c, 48, 25, 4.5, '#1b1530', '#8fe0ff');
+  brows(c, 38, 17, 9, 5);
+  mirror(c, 38, () => poly(c, [32, 41, 34, 47, 36, 41], '#ffffff', OUTLINE, 1.5));
+}
+
+function snowman(c: Ctx): void {
+  mirror(c, 32, () => line(c, 11, 58, 3, 44, OUTLINE, 7));
+  mirror(c, 32, () => line(c, 11, 58, 3, 44, '#8d5a2b', 3));
+  ell(c, 32, 60, 24, 21, '#ffffff');
+  ell(c, 32, 28, 18, 17, '#ffffff');
+  poly(c, [19, 15, 23, 2, 41, 2, 45, 15], '#3b6fd4', OUTLINE, 3);
+  rrect(c, 40, 44, 9, 17, 3, '#e04848', OUTLINE, 3);
+  rrect(c, 15, 40, 34, 9, 4, '#e04848', OUTLINE, 3);
+  ell(c, 25, 26, 3, 3.6, OUTLINE, null, 0);
+  ell(c, 39, 26, 3, 3.6, OUTLINE, null, 0);
+  brows(c, 32, 19, 7, 4);
+  poly(c, [31, 29, 46, 33, 31, 35], '#ff9a1f', OUTLINE, 2);
+  ell(c, 32, 58, 2.6, 2.6, OUTLINE, null, 0);
+  ell(c, 32, 68, 2.6, 2.6, OUTLINE, null, 0);
+}
+
+function iceGolem(c: Ctx): void {
+  rrect(c, 27, 84, 20, 21, 5, '#5f9fd0');
+  rrect(c, 57, 84, 20, 21, 5, '#5f9fd0');
+  mirror(c, 52, () => rrect(c, 3, 40, 22, 44, 8, '#8cc8ee'));
+  mirror(c, 52, () => ell(c, 14, 86, 13, 12, '#b6e4fa'));
+  mirror(c, 52, () => poly(c, [24, 38, 13, 16, 36, 30], '#e3f6ff', OUTLINE, 3));
+  rrect(c, 22, 34, 60, 56, 12, '#8cc8ee');
+  line(c, 30, 44, 42, 56, 'rgba(255,255,255,0.55)', 3);
+  line(c, 66, 76, 74, 66, 'rgba(255,255,255,0.4)', 3);
+  poly(c, [52, 50, 62, 63, 52, 78, 42, 63], '#eafcff', OUTLINE, 3);
+  rrect(c, 32, 8, 40, 34, 8, '#b6e4fa');
+  rrect(c, 38, 21, 10, 8, 2, '#fff27a', OUTLINE, 2);
+  rrect(c, 56, 21, 10, 8, 2, '#fff27a', OUTLINE, 2);
+  brows(c, 52, 16, 9, 6, 3.5);
+  line(c, 44, 35, 60, 35, OUTLINE, 3);
+}
+
+function yeti(c: Ctx): void {
+  mirror(c, 95, () => ell(c, 62, 186, 26, 12, '#bfd3ea', OUTLINE, 5));
+  mirror(c, 95, () => ell(c, 30, 120, 24, 50, '#eef3fa', OUTLINE, 5));
+  mirror(c, 95, () => ell(c, 27, 166, 20, 16, '#8fbde6', OUTLINE, 5));
+  ell(c, 95, 124, 62, 64, '#f4f8fd', OUTLINE, 5);
+  ell(c, 95, 138, 36, 38, '#cfe2f5', OUTLINE, 4);
+  mirror(c, 95, () => poly(c, [60, 42, 40, 6, 76, 26], '#8fbde6', OUTLINE, 4));
+  poly(c, [66, 28, 78, 8, 87, 22, 95, 4, 103, 22, 112, 8, 124, 28], '#f4f8fd', OUTLINE, 4);
+  ell(c, 95, 64, 50, 44, '#f4f8fd', OUTLINE, 5);
+  ell(c, 95, 72, 35, 29, '#8fbde6', OUTLINE, 4);
+  mirror(c, 95, () => eye(c, 80, 62, 8, '#1b1530', '#ffe14d'));
+  brows(c, 95, 48, 15, 10, 5);
+  rrect(c, 76, 80, 38, 14, 5, '#3a2440', OUTLINE, 3);
+  mirror(c, 95, () => poly(c, [80, 81, 85, 91, 90, 81], '#ffffff', OUTLINE, 2));
+}
+
+function iceDragon(c: Ctx): void {
+  dragonBody(c, {
+    wing: '#3d8fd0',
+    body: '#74c8f7',
+    belly: '#d8f1ff',
+    bellyLine: 'rgba(20,70,130,0.4)',
+    snout: '#8fcdf5',
+    horn: '#ffffff',
+    eye: '#fff27a',
   });
 }
 
@@ -311,6 +428,36 @@ function enemyFire(c: Ctx): void {
   ell(c, 20, 20, 16, 16, g, '#3d0a2a', 3);
 }
 
+/** てきの玉は、ジェムとまちがえないよう、外側を赤くふちどる */
+const DANGER_RIM = '#ff4b3a';
+
+function enemyIce(c: Ctx): void {
+  ell(c, 22, 22, 19.5, 19.5, null, DANGER_RIM, 3);
+  const g = radial(c, 22, 22, 18, [[0, '#ffffff'], [0.5, '#7fdcff'], [1, '#2a6fd0']]);
+  ell(c, 22, 22, 16, 16, g, '#0b1f3a', 3);
+  poly(c, starPoints(22, 22, 9, 3.5, 4), '#ffffff', null, 0);
+}
+
+function snowball(c: Ctx): void {
+  ell(c, 19, 19, 16.5, 16.5, null, DANGER_RIM, 3);
+  ell(c, 19, 19, 13, 13, '#ffffff', '#0b1f3a', 4);
+  ell(c, 22, 23, 6.5, 5.5, 'rgba(140,180,225,0.55)', null, 0);
+}
+
+function lock(c: Ctx): void {
+  c.beginPath();
+  c.arc(20, 19, 10, Math.PI, 0);
+  c.lineWidth = 10;
+  c.strokeStyle = OUTLINE;
+  c.stroke();
+  c.lineWidth = 4;
+  c.strokeStyle = '#cfd3ff';
+  c.stroke();
+  rrect(c, 5, 19, 30, 24, 6, '#ffc93f');
+  ell(c, 20, 29, 3.5, 3.5, OUTLINE, null, 0);
+  line(c, 20, 30, 20, 36, OUTLINE, 3);
+}
+
 // ---- エフェクト ----
 
 function slash(c: Ctx): void {
@@ -372,6 +519,13 @@ export const SPRITES: SpriteDef[] = [
   { name: 'orc', w: 92, h: 98, draw: orc },
   { name: 'orcKing', w: 180, h: 200, draw: orcKing },
   { name: 'dragon', w: 260, h: 226, draw: dragon },
+  { name: 'iceSlime', w: 60, h: 52, draw: iceSlime },
+  { name: 'snowBat', w: 72, h: 40, draw: snowBat },
+  { name: 'iceWolf', w: 76, h: 72, draw: iceWolf },
+  { name: 'snowman', w: 64, h: 84, draw: snowman },
+  { name: 'iceGolem', w: 104, h: 108, draw: iceGolem },
+  { name: 'yeti', w: 190, h: 200, draw: yeti },
+  { name: 'iceDragon', w: 260, h: 226, draw: iceDragon },
   { name: 'gem_s', w: 26, h: 30, draw: gem('#4fc3f7', '#b8ecff', 1) },
   { name: 'gem_m', w: 32, h: 36, draw: gem('#5fe08a', '#c4ffd6', 1.2) },
   { name: 'gem_l', w: 38, h: 43, draw: gem('#ff6b8b', '#ffc9d4', 1.42) },
@@ -385,6 +539,9 @@ export const SPRITES: SpriteDef[] = [
   { name: 'shield', w: 44, h: 50, draw: shield('#4d8df0', '#bcd6ff') },
   { name: 'shield2', w: 44, h: 50, draw: shield('#ffc93f', '#fff3b8') },
   { name: 'efire', w: 40, h: 40, draw: enemyFire },
+  { name: 'eice', w: 44, h: 44, draw: enemyIce },
+  { name: 'snowball', w: 38, h: 38, draw: snowball },
+  { name: 'lock', w: 40, h: 46, draw: lock },
   { name: 'slash', w: 136, h: 250, draw: slash },
   { name: 'ring', w: 256, h: 256, draw: ring },
   { name: 'glow', w: 128, h: 128, draw: glow },
@@ -413,18 +570,51 @@ export const SPRITES: SpriteDef[] = [
   { name: 'ic_coins', w: 76, h: 76, draw: icon(BONUS_BG, '💰') },
 ];
 
-export function drawFloor(c: Ctx, size: number): void {
+export interface FloorColors {
+  base: string;
+  shades: string[];
+  speck: string;
+  /** ひびの線の色。なければ、ひびはかかない */
+  crack?: string;
+}
+
+export const FLOORS: Record<string, FloorColors> = {
+  floor: { base: '#211f38', shades: ['#2c2b47', '#2f2e4c', '#292842', '#2d2c49'], speck: 'rgba(255,255,255,0.045)' },
+  // 白い雪玉や水色のジェムがまぎれないよう、暗めの青にする
+  floor_ice: {
+    base: '#17324a',
+    shades: ['#24506e', '#275574', '#214a66', '#255271'],
+    speck: 'rgba(200,235,255,0.16)',
+    crack: 'rgba(200,235,255,0.13)',
+  },
+};
+
+export function drawFloor(c: Ctx, size: number, colors: FloorColors): void {
   const tile = size / 4;
-  const shades = ['#2c2b47', '#2f2e4c', '#292842', '#2d2c49'];
-  c.fillStyle = '#211f38';
+  c.fillStyle = colors.base;
   c.fillRect(0, 0, size, size);
   for (let i = 0; i < 4; i++) {
     for (let j = 0; j < 4; j++) {
-      c.fillStyle = shades[(i * 3 + j * 5 + ((i * j) % 2)) % shades.length];
+      c.fillStyle = colors.shades[(i * 3 + j * 5 + ((i * j) % 2)) % colors.shades.length];
       c.fillRect(i * tile + 1.5, j * tile + 1.5, tile - 3, tile - 3);
     }
   }
-  c.fillStyle = 'rgba(255,255,255,0.045)';
+  c.fillStyle = colors.speck;
   const specks = [12, 20, 70, 44, 130, 18, 200, 90, 40, 150, 100, 210, 170, 160, 230, 230, 90, 100, 150, 60];
   for (let i = 0; i < specks.length; i += 2) c.fillRect(specks[i] % size, specks[i + 1] % size, 5, 5);
+  if (colors.crack) {
+    for (const pts of [
+      [20, 96, 44, 110, 40, 132, 58, 150],
+      [150, 30, 170, 52, 196, 48],
+      [190, 180, 176, 204, 200, 226],
+    ]) {
+      c.beginPath();
+      c.moveTo(pts[0], pts[1]);
+      for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+      c.lineWidth = 2.5;
+      c.strokeStyle = colors.crack;
+      c.lineJoin = 'round';
+      c.stroke();
+    }
+  }
 }
